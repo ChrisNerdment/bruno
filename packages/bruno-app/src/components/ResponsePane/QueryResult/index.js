@@ -12,6 +12,44 @@ import { useState, useMemo, useEffect } from 'react';
 import { useTheme } from 'providers/Theme/index';
 import { getEncoding, uuid } from 'utils/common/index';
 
+// Helper function to detect if content is NDJSON (Newline Delimited JSON)
+const isNDJSON = (content) => {
+  if (!content || typeof content !== 'string') {
+    return false;
+  }
+  
+  const lines = content.split('\n').filter(line => line.trim());
+  
+  // Must have at least 2 lines to be NDJSON
+  if (lines.length < 2) {
+    return false;
+  }
+  
+  // Each line should be valid JSON
+  return lines.every(line => {
+    try {
+      JSON.parse(line.trim());
+      return true;
+    } catch {
+      return false;
+    }
+  });
+};
+
+// Helper function to format NDJSON content
+const formatNDJSON = (content) => {
+  const lines = content.split('\n').filter(line => line.trim());
+  
+  return lines.map(line => {
+    try {
+      const parsed = JSON.parse(line.trim());
+      return JSON.stringify(parsed, null, 2);
+    } catch {
+      return line;
+    }
+  }).join('\n\n');
+};
+
 const formatResponse = (data, dataBuffer, encoding, mode, filter) => {
   if (data === undefined || !dataBuffer || !mode) {
     return '';
@@ -29,6 +67,11 @@ const formatResponse = (data, dataBuffer, encoding, mode, filter) => {
     try {
       JSON.parse(rawData);
     } catch (error) {
+      // If regular JSON parsing fails, check if it's NDJSON
+      if (isNDJSON(rawData)) {
+        return formatNDJSON(rawData);
+      }
+      
       // If the response content-type is JSON and it fails parsing, its an invalid JSON.
       // In that case, just show the response as it is in the preview.
       return rawData;
